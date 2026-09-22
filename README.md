@@ -63,8 +63,13 @@ npm install
 cp .env.example .env
 # put your Anthropic and/or Gemini API key in .env
 npm run build
-node dist/cli/index.js start "Build a login page"
+node --env-file=.env dist/cli/index.js start "Build a login page"
 ```
+
+`--env-file` is a Node flag (20.6+), not a shell feature, so this works
+the same way on Windows, macOS, and Linux. Don't try to load `.env` with
+shell syntax like `export $(cat .env | xargs)` — that's bash-only and
+silently does nothing on Windows.
 
 Keelis picks a provider each run: `KEELIS_PROVIDER=anthropic` or
 `KEELIS_PROVIDER=gemini` forces one explicitly. With neither set, it uses
@@ -90,7 +95,7 @@ execution (reading/writing files, running commands) is the next major
 piece.
 
 ```bash
-node dist/cli/index.js continue <missionId>
+node --env-file=.env dist/cli/index.js continue <missionId>
 ```
 
 reloads a mission's saved state and keeps working through any tasks that
