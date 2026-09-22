@@ -56,8 +56,24 @@ tests/        unit tests
 
 ```bash
 npm install
-npm run dev
+cp .env.example .env
+# put your Anthropic API key in .env
+npm run build
+ANTHROPIC_API_KEY=... node dist/cli/index.js start "Build a login page"
 ```
+
+`start` plans a mission with the Anthropic provider, saves state to
+`.keelis/<missionId>.json`, and runs every ready task. The agent that runs
+tasks is currently a stub — it marks a task `RUNNING` then `COMPLETED`
+without doing real work, which is enough to prove the mission → plan →
+task-graph → continuation loop end to end. Real task execution is next.
+
+```bash
+node dist/cli/index.js continue <missionId>
+```
+
+reloads a mission's saved state and keeps working through any tasks that
+are still ready.
 
 ## Scripts
 
