@@ -61,10 +61,16 @@ tests/        unit tests
 ```bash
 npm install
 cp .env.example .env
-# put your Anthropic API key in .env
+# put your Anthropic and/or Gemini API key in .env
 npm run build
-ANTHROPIC_API_KEY=... node dist/cli/index.js start "Build a login page"
+node dist/cli/index.js start "Build a login page"
 ```
+
+Keelis picks a provider each run: `KEELIS_PROVIDER=anthropic` or
+`KEELIS_PROVIDER=gemini` forces one explicitly. With neither set, it uses
+Anthropic if `ANTHROPIC_API_KEY` is present, otherwise Gemini if only
+`GEMINI_API_KEY` is set. Gemini's `generateContent` API has a free tier,
+which is handy for trying Keelis out without spending on API credits.
 
 `start` plans a mission with the Anthropic provider, saves state to
 `.keelis/<missionId>.json`, and runs every ready task. For each task,

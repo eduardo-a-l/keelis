@@ -7,18 +7,24 @@ import { loadMissionState, missionExists, saveMissionState } from "../core/persi
 import { SimpleReviewer } from "../core/review.js";
 import { MissionRunner, type RunnerEvent } from "../core/runner.js";
 import { AnthropicProvider } from "../providers/anthropic.js";
+import { GeminiProvider } from "../providers/gemini.js";
 import type { Provider } from "../providers/provider.js";
+import { selectProviderChoice } from "../providers/select.js";
 
-function requireApiKey(): string {
-  const key = process.env.ANTHROPIC_API_KEY;
-  if (!key) {
-    throw new Error("ANTHROPIC_API_KEY is not set");
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`${name} is not set`);
   }
-  return key;
+  return value;
 }
 
 function buildProvider(): Provider {
-  return new AnthropicProvider({ apiKey: requireApiKey() });
+  const choice = selectProviderChoice(process.env);
+  if (choice === "gemini") {
+    return new GeminiProvider({ apiKey: requireEnv("GEMINI_API_KEY") });
+  }
+  return new AnthropicProvider({ apiKey: requireEnv("ANTHROPIC_API_KEY") });
 }
 
 function logEvent(event: RunnerEvent): void {
