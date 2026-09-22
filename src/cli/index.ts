@@ -1,8 +1,11 @@
 import { randomUUID } from "node:crypto";
+import { SimpleAgent } from "../agents/simpleAgent.js";
 import type { Mission, MissionState } from "../core/mission.js";
 import { TaskGraph } from "../core/graph.js";
 import { SimplePlanner } from "../core/planner.js";
 import { loadMissionState, missionExists, saveMissionState } from "../core/persistence.js";
+import { SimpleReviewer } from "../core/review.js";
+import { MissionRunner, type RunnerEvent } from "../core/runner.js";
 import { AnthropicProvider } from "../providers/anthropic.js";
 import type { Provider } from "../providers/provider.js";
 
@@ -18,16 +21,33 @@ function buildProvider(): Provider {
   return new AnthropicProvider({ apiKey: requireApiKey() });
 }
 
-async function runReadyTasks(graph: TaskGraph): Promise<void> {
-  let ready = graph.getReadyTasks();
-  while (ready.length > 0) {
-    for (const task of ready) {
-      graph.transition(task.id, "RUNNING");
-      console.log(`Running task ${task.id}: ${task.title}`);
-      graph.transition(task.id, "COMPLETED");
-      console.log(`Completed task ${task.id}`);
-    }
-    ready = graph.getReadyTasks();
+function logEvent(event: RunnerEvent): void {
+  const label = `${event.task.id} [${event.task.title}]`;
+  if (event.type === "started") {
+    console.log(`Running ${label}`);
+  } else if (event.type === "blocked") {
+    console.log(`Blocked ${label}: ${event.detail}`);
+  } else if (event.type === "approved") {
+    console.log(`Completed ${label}`);
+  } else if (event.type === "rejected") {
+    console.log(`Review rejected ${label}, retrying: ${event.detail}`);
+  } else if (event.type === "cancelled") {
+    console.log(`Cancelled ${label} after max attempts: ${event.detail}`);
+  }
+}
+
+function buildRunner(graph: TaskGraph, provider: Provider): MissionRunner {
+  return new MissionRunner(graph, {
+    agent: new SimpleAgent(provider),
+    reviewer: new SimpleReviewer(provider),
+    onEvent: logEvent
+  });
+}
+
+function printSummary(mission: Mission, graph: TaskGraph): void {
+  console.log(`Mission ${mission.id} status: ${mission.status}`);
+  for (const task of graph.allTasks()) {
+    console.log(`  ${task.id} [${task.status}] ${task.title}`);
   }
 }
 
@@ -50,13 +70,13 @@ async function startMission(objective: string): Promise<void> {
   mission.status = "RUNNING";
   await saveMissionState({ mission, tasks: graph.allTasks() });
 
-  await runReadyTasks(graph);
+  await buildRunner(graph, provider).run();
 
   mission.status = graph.isMissionComplete() ? "COMPLETED" : "RUNNING";
   mission.updatedAt = new Date().toISOString();
   await saveMissionState({ mission, tasks: graph.allTasks() });
 
-  console.log(`Mission ${missionId} status: ${mission.status}`);
+  printSummary(mission, graph);
 }
 
 async function continueMission(missionId: string): Promise<void> {
@@ -64,16 +84,17 @@ async function continueMission(missionId: string): Promise<void> {
     throw new Error(`No saved state for mission ${missionId}`);
   }
 
+  const provider = buildProvider();
   const state: MissionState = await loadMissionState(missionId);
   const graph = new TaskGraph(state.tasks);
 
-  await runReadyTasks(graph);
+  await buildRunner(graph, provider).run();
 
   state.mission.status = graph.isMissionComplete() ? "COMPLETED" : "RUNNING";
   state.mission.updatedAt = new Date().toISOString();
   await saveMissionState({ mission: state.mission, tasks: graph.allTasks() });
 
-  console.log(`Mission ${missionId} status: ${state.mission.status}`);
+  printSummary(state.mission, graph);
 }
 
 function printUsage(): void {

@@ -67,10 +67,21 @@ ANTHROPIC_API_KEY=... node dist/cli/index.js start "Build a login page"
 ```
 
 `start` plans a mission with the Anthropic provider, saves state to
-`.keelis/<missionId>.json`, and runs every ready task. The agent that runs
-tasks is currently a stub — it marks a task `RUNNING` then `COMPLETED`
-without doing real work, which is enough to prove the mission → plan →
-task-graph → continuation loop end to end. Real task execution is next.
+`.keelis/<missionId>.json`, and runs every ready task. For each task,
+`SimpleAgent` asks the provider to either complete the task and summarize
+what it did, or report a blocker — in which case it spawns a new dependency
+task via `TaskGraph.spawnTask` and the original task moves to `BLOCKED`
+until that dependency completes. Once an attempt finishes, `SimpleReviewer`
+judges the result summary against the task description before the task is
+allowed to become `COMPLETED`; a rejected review sends the task back to
+`READY` for another attempt, up to 3 attempts (configurable via
+`MissionRunner`'s `maxAttempts`) before it's `CANCELLED`.
+
+`SimpleAgent` does not yet touch the filesystem or run commands — it
+reasons about the task and reports a summary, which is enough to prove the
+plan → task-graph → self-review → continuation loop end to end. Real code
+execution (reading/writing files, running commands) is the next major
+piece.
 
 ```bash
 node dist/cli/index.js continue <missionId>

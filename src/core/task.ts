@@ -13,6 +13,8 @@ export interface Task {
   createdBy: TaskOrigin;
   spawnedFrom?: string;
   spawnReason?: string;
+  attempts?: number;
+  lastReviewFeedback?: string;
   createdAt: string;
   updatedAt: string;
 }

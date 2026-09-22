@@ -26,6 +26,15 @@ export class TaskGraph {
     this.tasks.set(task.id, task);
   }
 
+  updateTask(id: string, patch: Partial<Pick<Task, "attempts" | "lastReviewFeedback">>): Task {
+    const task = this.tasks.get(id);
+    if (!task) {
+      throw new Error(`Unknown task: ${id}`);
+    }
+    Object.assign(task, patch, { updatedAt: new Date().toISOString() });
+    return task;
+  }
+
   private completedIds(): Set<string> {
     return new Set(
       this.allTasks()
@@ -34,9 +43,18 @@ export class TaskGraph {
     );
   }
 
-  getReadyTasks(): Task[] {
+  private promotePendingTasks(): void {
     const completed = this.completedIds();
-    return this.allTasks().filter((task) => isReady(task, completed));
+    for (const task of this.allTasks()) {
+      if ((task.status === "QUEUED" || task.status === "BLOCKED") && isReady(task, completed)) {
+        this.transition(task.id, "READY");
+      }
+    }
+  }
+
+  getRunnableTasks(): Task[] {
+    this.promotePendingTasks();
+    return this.allTasks().filter((task) => task.status === "READY");
   }
 
   transition(id: string, to: TaskStatus): Task {

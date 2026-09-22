@@ -1,6 +1,9 @@
+import type { TaskGraph } from "../core/graph.js";
+import type { Task } from "../core/task.js";
+
 export interface AgentContext {
-  missionId: string;
-  taskId: string;
+  task: Task;
+  graph: TaskGraph;
 }
 
 export interface AgentResult {
