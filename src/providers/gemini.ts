@@ -26,7 +26,7 @@ export class GeminiProvider implements Provider {
 
   constructor(options: GeminiProviderOptions) {
     this.apiKey = options.apiKey;
-    this.model = options.model ?? "gemini-2.5-flash";
+    this.model = options.model ?? "gemini-3.6-flash";
   }
 
   async complete(request: CompletionRequest): Promise<CompletionResult> {

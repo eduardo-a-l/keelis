@@ -74,8 +74,14 @@ silently does nothing on Windows.
 Keelis picks a provider each run: `KEELIS_PROVIDER=anthropic` or
 `KEELIS_PROVIDER=gemini` forces one explicitly. With neither set, it uses
 Anthropic if `ANTHROPIC_API_KEY` is present, otherwise Gemini if only
-`GEMINI_API_KEY` is set. Gemini's `generateContent` API has a free tier,
-which is handy for trying Keelis out without spending on API credits.
+`GEMINI_API_KEY` is set.
+
+Both providers default to a specific model string (see
+`src/providers/anthropic.ts` / `gemini.ts`), which vendors periodically
+retire or rename. If a run fails with a 404 or "model not found," set
+`ANTHROPIC_MODEL` or `GEMINI_MODEL` in `.env` to whatever model string the
+error message (or the provider's current docs) points you to — no code
+change needed.
 
 `start` plans a mission with the Anthropic provider, saves state to
 `.keelis/<missionId>.json`, and runs every ready task. For each task,

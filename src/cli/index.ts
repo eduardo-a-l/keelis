@@ -22,9 +22,13 @@ function requireEnv(name: string): string {
 function buildProvider(): Provider {
   const choice = selectProviderChoice(process.env);
   if (choice === "gemini") {
-    return new GeminiProvider({ apiKey: requireEnv("GEMINI_API_KEY") });
+    const apiKey = requireEnv("GEMINI_API_KEY");
+    const model = process.env.GEMINI_MODEL;
+    return model ? new GeminiProvider({ apiKey, model }) : new GeminiProvider({ apiKey });
   }
-  return new AnthropicProvider({ apiKey: requireEnv("ANTHROPIC_API_KEY") });
+  const apiKey = requireEnv("ANTHROPIC_API_KEY");
+  const model = process.env.ANTHROPIC_MODEL;
+  return model ? new AnthropicProvider({ apiKey, model }) : new AnthropicProvider({ apiKey });
 }
 
 function logEvent(event: RunnerEvent): void {
