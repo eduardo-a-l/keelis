@@ -9,6 +9,7 @@ import { MissionRunner, type RunnerEvent } from "../core/runner.js";
 import { AnthropicProvider } from "../providers/anthropic.js";
 import { GeminiProvider } from "../providers/gemini.js";
 import type { Provider } from "../providers/provider.js";
+import { RetryingProvider } from "../providers/retry.js";
 import { selectProviderChoice } from "../providers/select.js";
 
 function requireEnv(name: string): string {
@@ -19,7 +20,7 @@ function requireEnv(name: string): string {
   return value;
 }
 
-function buildProvider(): Provider {
+function buildRawProvider(): Provider {
   const choice = selectProviderChoice(process.env);
   if (choice === "gemini") {
     const apiKey = requireEnv("GEMINI_API_KEY");
@@ -29,6 +30,17 @@ function buildProvider(): Provider {
   const apiKey = requireEnv("ANTHROPIC_API_KEY");
   const model = process.env.ANTHROPIC_MODEL;
   return model ? new AnthropicProvider({ apiKey, model }) : new AnthropicProvider({ apiKey });
+}
+
+function buildProvider(): Provider {
+  return new RetryingProvider(buildRawProvider(), {
+    onRetry: (event) => {
+      const message = event.error instanceof Error ? event.error.message : String(event.error);
+      console.log(
+        `Provider call failed (attempt ${event.attempt}/${event.maxAttempts}), retrying in ${event.delayMs}ms: ${message}`
+      );
+    }
+  });
 }
 
 function logEvent(event: RunnerEvent): void {

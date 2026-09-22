@@ -76,6 +76,12 @@ Keelis picks a provider each run: `KEELIS_PROVIDER=anthropic` or
 Anthropic if `ANTHROPIC_API_KEY` is present, otherwise Gemini if only
 `GEMINI_API_KEY` is set.
 
+Every provider call is wrapped in `RetryingProvider`, which retries
+transient errors (429, 500, 502, 503, 504) with exponential backoff — up
+to 4 attempts, waiting 1s/2s/4s between them by default — before giving
+up. This is common with free-tier APIs under load; a `503 UNAVAILABLE` is
+usually just that and clears up within a few seconds.
+
 Both providers default to a specific model string (see
 `src/providers/anthropic.ts` / `gemini.ts`), which vendors periodically
 retire or rename. If a run fails with a 404 or "model not found," set

@@ -35,7 +35,10 @@ the orchestration loop but not yet real code execution.
 Goal: it survives real-world interruption and you can trust why it did things.
 
 - [ ] Usage/resource awareness — detect provider limits, pause with saved
-      state, resume later (this is the differentiator vs. Arctic)
+      state, resume later (this is the differentiator vs. Arctic).
+      `RetryingProvider` (v1) already retries transient errors like 503s
+      with backoff, but that's short-term resilience, not the same as
+      detecting a hard usage cap and pausing until it resets
 - [ ] Explainability log — every task creation/reprioritization/skip gets a
       one-line "why," queryable later
 - [ ] Persistent decision memory, separate from task history
