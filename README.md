@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="assets/logo-readme.png" alt="Keelis" width="120" />
+</div>
+
 # Keelis
 
 A persistent AI workspace that takes a large objective and continuously transforms it into completed work.
