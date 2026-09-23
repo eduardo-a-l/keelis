@@ -9,12 +9,17 @@ Goal: one agent, one mission, tasks that spawn tasks, and it survives a restart.
 
 - [x] Mission → Planner produces an initial flat task list
 - [x] Task graph with dependencies and the state machine (`src/core`)
-- [x] Single agent, single provider — `CodingAgent` does real work via
+- [x] Single agent, multiple providers — `CodingAgent` does real work via
       tool calls (`read_file`, `write_file`, `list_directory`, an
-      allow-listed `run_command`) against `AnthropicProvider`'s native
-      tool-use. Gemini has no `converse` adapter yet, so it still falls
-      back to the older text-only `SimpleAgent` — a known, temporary
-      asymmetry between providers, not by design long-term
+      allow-listed `run_command`) against either `AnthropicProvider`'s
+      native tool-use or `GeminiProvider`'s function calling. The
+      canonical `ConverseMessage`/`ToolCall` schema held up across both,
+      with one real crack: Gemini 3 requires echoing a `thoughtSignature`
+      back on each function-call part, which Anthropic has no concept of.
+      Handled via an opaque `ToolCall.providerMetadata` field that only
+      Gemini's adapter reads/writes — proof the abstraction survives a
+      second, differently-shaped provider without leaking either
+      provider's quirks into the other's code path
 - [x] Tasks can create new tasks with a declared reason, attached as a
       dependency of the task that spawned them (`TaskGraph.spawnTask`,
       triggered by `SimpleAgent` when it reports a blocker)
@@ -31,10 +36,10 @@ notifications until this loop is reliable without babysitting every step.
 
 Remaining known gaps:
 
-- Only `AnthropicProvider` has a `converse`/tool-use adapter. A second
-  adapter (Gemini) hasn't been written yet, so the "swap providers freely"
-  promise is proven for the planner/reviewer's plain-text calls but not
-  yet for the agent's tool-use loop.
+- A third provider (or a provider without native tool-use at all) would
+  further test whether `providerMetadata` as a fully generic escape hatch
+  is enough, or whether more provider-specific plumbing will keep leaking
+  into the canonical schema over time.
 - Self-review still asks the model to judge its own summary. Now that the
   agent can actually run commands, review could check something real (did
   the build pass, did tests pass) instead of just judging prose — that's

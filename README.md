@@ -100,9 +100,10 @@ allowed to become `COMPLETED`; a rejected review sends the task back to
 `READY` for another attempt, up to 3 attempts (configurable via
 `MissionRunner`'s `maxAttempts`) before it's `CANCELLED`.
 
-**Real tool use, when the provider supports it.** When the chosen provider
-implements `ToolCapableProvider` (currently only `AnthropicProvider`),
-`start`/`continue` use `CodingAgent` instead of `SimpleAgent`. `CodingAgent`
+**Real tool use, on both providers.** Both `AnthropicProvider` and
+`GeminiProvider` implement `ToolCapableProvider`, so `start`/`continue` use
+`CodingAgent` regardless of which one you pick — including on Gemini's free
+tier. `CodingAgent`
 runs a bounded loop (`maxSteps`, default 8) of real tool calls — `read_file`,
 `write_file`, `list_directory`, and an allow-listed `run_command` (`git`,
 `npm`, `npx`, `node` by default) — against `KEELIS_WORKDIR` (defaults to the
@@ -118,11 +119,16 @@ becomes a real spawned task via `TaskGraph.spawnTask`, same as before.
   confirmation; reads do not
 - `MANUAL` — every tool call needs confirmation, including reads
 
-Gemini does not have a `converse` adapter yet, so `GeminiProvider` still
-falls back to the old text-only `SimpleAgent`, which reasons about a task
-and reports a summary without touching the filesystem. This is a known,
-temporary asymmetry — the two providers currently produce genuinely
-different agent behavior, not just different wording.
+Gemini 3-series models (the default) require echoing back a
+`thoughtSignature` on each function-call part in the next request, or the
+API returns a hard 400. `GeminiProvider` threads this through via
+`ToolCall.providerMetadata` — an opaque, provider-specific field the
+canonical schema carries but never interprets. When a tool call has no
+real signature to echo (shouldn't normally happen in practice), it falls
+back to Google's documented dummy value rather than failing outright.
+`SimpleAgent` (the older, text-only, no-tools agent) still exists and is
+used automatically for any future provider that doesn't implement
+`ToolCapableProvider`.
 
 ```bash
 node --env-file=.env dist/cli/index.js continue <missionId>
