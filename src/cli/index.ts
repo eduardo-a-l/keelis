@@ -1,5 +1,8 @@
 import { randomUUID } from "node:crypto";
+import readline from "node:readline/promises";
+import { CodingAgent } from "../agents/codingAgent.js";
 import { SimpleAgent } from "../agents/simpleAgent.js";
+import type { Agent } from "../agents/index.js";
 import type { Mission, MissionState } from "../core/mission.js";
 import { TaskGraph } from "../core/graph.js";
 import { SimplePlanner } from "../core/planner.js";
@@ -7,10 +10,13 @@ import { loadMissionState, missionExists, saveMissionState } from "../core/persi
 import { SimpleReviewer } from "../core/review.js";
 import { MissionRunner, type RunnerEvent } from "../core/runner.js";
 import { AnthropicProvider } from "../providers/anthropic.js";
+import { isToolCapable } from "../providers/converse.js";
 import { GeminiProvider } from "../providers/gemini.js";
 import type { Provider } from "../providers/provider.js";
 import { RetryingProvider } from "../providers/retry.js";
 import { selectProviderChoice } from "../providers/select.js";
+import { ToolExecutor } from "../tools/executor.js";
+import type { PermissionLevel } from "../tools/types.js";
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -43,6 +49,42 @@ function buildProvider(): Provider {
   });
 }
 
+function getPermissionLevel(): PermissionLevel {
+  const value = process.env.KEELIS_PERMISSION?.toUpperCase();
+  if (value === "AUTO" || value === "MANUAL") {
+    return value;
+  }
+  return "SUPERVISED";
+}
+
+function getWorkdir(): string {
+  return process.env.KEELIS_WORKDIR ?? process.cwd();
+}
+
+function buildConfirm(): (message: string) => Promise<boolean> {
+  return async (message: string) => {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    try {
+      const answer = await rl.question(`${message} [y/N] `);
+      return answer.trim().toLowerCase() === "y";
+    } finally {
+      rl.close();
+    }
+  };
+}
+
+function buildAgent(provider: Provider): Agent {
+  if (isToolCapable(provider)) {
+    const executor = new ToolExecutor({
+      workdir: getWorkdir(),
+      permission: getPermissionLevel(),
+      confirm: buildConfirm()
+    });
+    return new CodingAgent(provider, executor);
+  }
+  return new SimpleAgent(provider);
+}
+
 function logEvent(event: RunnerEvent): void {
   const label = `${event.task.id} [${event.task.title}]`;
   if (event.type === "started") {
@@ -60,7 +102,7 @@ function logEvent(event: RunnerEvent): void {
 
 function buildRunner(graph: TaskGraph, provider: Provider): MissionRunner {
   return new MissionRunner(graph, {
-    agent: new SimpleAgent(provider),
+    agent: buildAgent(provider),
     reviewer: new SimpleReviewer(provider),
     onEvent: logEvent
   });

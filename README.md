@@ -100,11 +100,29 @@ allowed to become `COMPLETED`; a rejected review sends the task back to
 `READY` for another attempt, up to 3 attempts (configurable via
 `MissionRunner`'s `maxAttempts`) before it's `CANCELLED`.
 
-`SimpleAgent` does not yet touch the filesystem or run commands — it
-reasons about the task and reports a summary, which is enough to prove the
-plan → task-graph → self-review → continuation loop end to end. Real code
-execution (reading/writing files, running commands) is the next major
-piece.
+**Real tool use, when the provider supports it.** When the chosen provider
+implements `ToolCapableProvider` (currently only `AnthropicProvider`),
+`start`/`continue` use `CodingAgent` instead of `SimpleAgent`. `CodingAgent`
+runs a bounded loop (`maxSteps`, default 8) of real tool calls — `read_file`,
+`write_file`, `list_directory`, and an allow-listed `run_command` (`git`,
+`npm`, `npx`, `node` by default) — against `KEELIS_WORKDIR` (defaults to the
+current directory). Every tool call is path-checked so it can't escape that
+directory. If the model calls `report_blocker` instead of finishing, that
+becomes a real spawned task via `TaskGraph.spawnTask`, same as before.
+
+`KEELIS_PERMISSION` controls what needs a yes/no prompt before it runs:
+
+- `AUTO` — nothing is confirmed (still restricted to the command allow-list
+  and the working directory)
+- `SUPERVISED` (default) — `write_file` and `run_command` need
+  confirmation; reads do not
+- `MANUAL` — every tool call needs confirmation, including reads
+
+Gemini does not have a `converse` adapter yet, so `GeminiProvider` still
+falls back to the old text-only `SimpleAgent`, which reasons about a task
+and reports a summary without touching the filesystem. This is a known,
+temporary asymmetry — the two providers currently produce genuinely
+different agent behavior, not just different wording.
 
 ```bash
 node --env-file=.env dist/cli/index.js continue <missionId>

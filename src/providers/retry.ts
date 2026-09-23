@@ -1,3 +1,5 @@
+import type { ConverseRequest, ConverseResponse, ToolCapableProvider } from "./converse.js";
+import { isToolCapable } from "./converse.js";
 import type { CompletionRequest, CompletionResult, Provider } from "./provider.js";
 
 export interface RetryEvent {
@@ -35,6 +37,7 @@ function defaultDelay(ms: number): Promise<void> {
 
 export class RetryingProvider implements Provider {
   name: string;
+  converse?: (request: ConverseRequest) => Promise<ConverseResponse>;
   private readonly maxAttempts: number;
   private readonly baseDelayMs: number;
   private readonly delay: (ms: number) => Promise<void>;
@@ -49,14 +52,23 @@ export class RetryingProvider implements Provider {
     this.baseDelayMs = options.baseDelayMs ?? 1000;
     this.delay = options.delay ?? defaultDelay;
     this.onRetry = options.onRetry;
+
+    if (isToolCapable(inner)) {
+      const toolCapableInner: ToolCapableProvider = inner;
+      this.converse = (request) => this.withRetry(() => toolCapableInner.converse(request));
+    }
   }
 
   async complete(request: CompletionRequest): Promise<CompletionResult> {
+    return this.withRetry(() => this.inner.complete(request));
+  }
+
+  private async withRetry<T>(fn: () => Promise<T>): Promise<T> {
     let lastError: unknown;
 
     for (let attempt = 1; attempt <= this.maxAttempts; attempt += 1) {
       try {
-        return await this.inner.complete(request);
+        return await fn();
       } catch (error) {
         lastError = error;
         if (attempt === this.maxAttempts || !isRetryable(error)) {
