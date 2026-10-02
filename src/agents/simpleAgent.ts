@@ -1,4 +1,5 @@
 import type { Provider } from "../providers/provider.js";
+import { stripFences } from "../core/jsonResponse.js";
 import type { Agent, AgentContext, AgentResult } from "./index.js";
 
 interface AgentBlocker {
@@ -27,15 +28,6 @@ function buildPrompt(context: AgentContext): string {
     `Task title: ${context.task.title}`,
     `Task description: ${context.task.description}`
   ].join("\n");
-}
-
-function stripFences(text: string): string {
-  return text
-    .trim()
-    .replace(/^```json/, "")
-    .replace(/^```/, "")
-    .replace(/```$/, "")
-    .trim();
 }
 
 function parseDecision(text: string): AgentDecision {

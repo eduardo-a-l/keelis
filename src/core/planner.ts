@@ -1,4 +1,5 @@
 import type { Provider } from "../providers/provider.js";
+import { stripFences } from "./jsonResponse.js";
 import type { Task } from "./task.js";
 
 export interface PlannedTask {
@@ -24,21 +25,33 @@ function buildPrompt(objective: string): string {
   ].join("\n");
 }
 
-function stripFences(text: string): string {
-  return text
-    .trim()
-    .replace(/^```json/, "")
-    .replace(/^```/, "")
-    .replace(/```$/, "")
-    .trim();
+function isPlannedTask(value: unknown): value is PlannedTask {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const candidate = value as Partial<PlannedTask>;
+  const hasDependsOn =
+    candidate.dependsOn === undefined ||
+    (Array.isArray(candidate.dependsOn) &&
+      candidate.dependsOn.every((id) => typeof id === "string"));
+
+  return (
+    typeof candidate.id === "string" &&
+    typeof candidate.title === "string" &&
+    typeof candidate.description === "string" &&
+    hasDependsOn
+  );
 }
 
 function parsePlan(text: string): PlannedTask[] {
-  const parsed = JSON.parse(stripFences(text));
+  const parsed: unknown = JSON.parse(stripFences(text));
   if (!Array.isArray(parsed)) {
     throw new Error("Planner response was not a JSON array");
   }
-  return parsed as PlannedTask[];
+  if (!parsed.every(isPlannedTask)) {
+    throw new Error("Planner response contained a task missing a string id, title, or description");
+  }
+  return parsed;
 }
 
 export class SimplePlanner implements Planner {
