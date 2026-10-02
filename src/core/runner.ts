@@ -1,10 +1,11 @@
 import type { Agent } from "../agents/index.js";
+import type { Checkpointer } from "./checkpoint.js";
 import type { Task } from "./task.js";
 import type { TaskGraph } from "./graph.js";
 import type { Reviewer } from "./review.js";
 
 export interface RunnerEvent {
-  type: "started" | "blocked" | "approved" | "rejected" | "cancelled";
+  type: "started" | "blocked" | "approved" | "rejected" | "cancelled" | "rolledback";
   task: Task;
   detail?: string;
 }
@@ -12,6 +13,7 @@ export interface RunnerEvent {
 export interface RunnerOptions {
   agent: Agent;
   reviewer: Reviewer;
+  checkpointer?: Checkpointer;
   maxAttempts?: number;
   onEvent?: (event: RunnerEvent) => void;
 }
@@ -46,6 +48,12 @@ export class MissionRunner {
     if (!task) {
       return;
     }
+
+    if (this.options.checkpointer) {
+      const checkpointId = await this.options.checkpointer.create(`before ${taskId}`);
+      this.graph.updateTask(taskId, { checkpointId });
+    }
+
     this.emit({ type: "started", task });
 
     const result = await this.options.agent.run({ task, graph: this.graph });
@@ -67,6 +75,11 @@ export class MissionRunner {
       this.graph.transition(taskId, "COMPLETED");
       this.emit({ type: "approved", task: afterRun, detail: review.feedback });
       return;
+    }
+
+    if (this.options.checkpointer && afterRun.checkpointId) {
+      await this.options.checkpointer.restore(afterRun.checkpointId);
+      this.emit({ type: "rolledback", task: afterRun, detail: afterRun.checkpointId });
     }
 
     this.graph.transition(taskId, "FAILED");

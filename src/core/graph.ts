@@ -26,7 +26,10 @@ export class TaskGraph {
     this.tasks.set(task.id, task);
   }
 
-  updateTask(id: string, patch: Partial<Pick<Task, "attempts" | "lastReviewFeedback">>): Task {
+  updateTask(
+    id: string,
+    patch: Partial<Pick<Task, "attempts" | "lastReviewFeedback" | "checkpointId">>
+  ): Task {
     const task = this.tasks.get(id);
     if (!task) {
       throw new Error(`Unknown task: ${id}`);
