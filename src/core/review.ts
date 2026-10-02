@@ -1,4 +1,5 @@
 import type { Provider } from "../providers/provider.js";
+import { stripFences } from "./jsonResponse.js";
 import type { Task } from "./task.js";
 
 export interface ReviewResult {
@@ -23,15 +24,6 @@ function buildPrompt(task: Task, resultSummary: string): string {
     `Task description: ${task.description}`,
     `Work summary: ${resultSummary}`
   ].join("\n");
-}
-
-function stripFences(text: string): string {
-  return text
-    .trim()
-    .replace(/^```json/, "")
-    .replace(/^```/, "")
-    .replace(/```$/, "")
-    .trim();
 }
 
 function parseReview(text: string): ReviewResult {
