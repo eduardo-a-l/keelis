@@ -27,12 +27,21 @@ Goal: one agent, one mission, tasks that spawn tasks, and it survives a restart.
       the original task description before it flips to `COMPLETED`;
       rejected reviews retry up to a capped number of attempts, then
       `CANCELLED` rather than looping forever
-- [ ] Checkpointing: snapshot state before a task starts, so it can be
-      rolled back
+- [x] Checkpointing: `GitCheckpointer` commits a snapshot (`git add -A`,
+      `git commit --allow-empty --no-verify`) before each task starts,
+      initializing a repo in the workdir if one doesn't exist yet.
+      `MissionRunner` records the checkpoint id on the task and, if the
+      review rejects the attempt, runs `git reset --hard` +
+      `git clean -fd` back to it before the next attempt starts, so
+      retries begin from a clean state instead of stacking on top of a
+      failed one. Set `KEELIS_CHECKPOINT=off` to fall back to a
+      `NullCheckpointer` (no-op) if you don't want commits made on your
+      behalf.
 - [x] `continue`: reload mission state, find the next `READY` task, keep going
 
-No multi-agent, no multi-provider switching, no plugins, no dashboard, no
-notifications until this loop is reliable without babysitting every step.
+v1's loop is now feature-complete per the original scope. No multi-agent,
+no multi-provider switching, no plugins, no dashboard, no notifications
+until this loop is reliable without babysitting every step.
 
 Remaining known gaps:
 
@@ -48,10 +57,11 @@ Remaining known gaps:
   `write_file`/`run_command` behind a yes/no prompt, but it's a blunt,
   global setting — no per-command nuance (e.g. `git status` vs `git push`
   are treated the same).
-- No checkpointing yet: a rejected review just re-prompts the model on
-  top of whatever it already wrote to disk, rather than reverting to a
-  clean state first. This matters a lot more now that attempts touch
-  real files.
+- Checkpointing commits directly onto whatever branch the workdir is
+  currently on rather than a hidden/shadow branch, and doesn't try to
+  reconcile with a repo the user is actively committing to by hand. Fine
+  for a dedicated workdir; would need a shadow-ref approach before this
+  can safely run against a repo with real, in-progress human work.
 
 ## v2 — Make it resilient and legible
 

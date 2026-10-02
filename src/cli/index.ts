@@ -3,6 +3,7 @@ import readline from "node:readline/promises";
 import { CodingAgent } from "../agents/codingAgent.js";
 import { SimpleAgent } from "../agents/simpleAgent.js";
 import type { Agent } from "../agents/index.js";
+import { GitCheckpointer, NullCheckpointer, type Checkpointer } from "../core/checkpoint.js";
 import type { Mission, MissionState } from "../core/mission.js";
 import { TaskGraph } from "../core/graph.js";
 import { SimplePlanner } from "../core/planner.js";
@@ -61,6 +62,13 @@ function getWorkdir(): string {
   return process.env.KEELIS_WORKDIR ?? process.cwd();
 }
 
+function buildCheckpointer(): Checkpointer {
+  if (process.env.KEELIS_CHECKPOINT?.toUpperCase() === "OFF") {
+    return new NullCheckpointer();
+  }
+  return new GitCheckpointer(getWorkdir());
+}
+
 function buildConfirm(): (message: string) => Promise<boolean> {
   return async (message: string) => {
     const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
@@ -97,6 +105,8 @@ function logEvent(event: RunnerEvent): void {
     console.log(`Review rejected ${label}, retrying: ${event.detail}`);
   } else if (event.type === "cancelled") {
     console.log(`Cancelled ${label} after max attempts: ${event.detail}`);
+  } else if (event.type === "rolledback") {
+    console.log(`Rolled back ${label} to checkpoint ${event.detail}`);
   }
 }
 
@@ -104,6 +114,7 @@ function buildRunner(graph: TaskGraph, provider: Provider): MissionRunner {
   return new MissionRunner(graph, {
     agent: buildAgent(provider),
     reviewer: new SimpleReviewer(provider),
+    checkpointer: buildCheckpointer(),
     onEvent: logEvent
   });
 }

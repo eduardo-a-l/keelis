@@ -15,6 +15,7 @@ export interface Task {
   spawnReason?: string;
   attempts?: number;
   lastReviewFeedback?: string;
+  checkpointId?: string;
   createdAt: string;
   updatedAt: string;
 }

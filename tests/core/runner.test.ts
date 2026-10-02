@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Agent, AgentContext, AgentResult } from "../../src/agents/index.js";
+import type { Checkpointer } from "../../src/core/checkpoint.js";
 import { TaskGraph } from "../../src/core/graph.js";
 import { MissionRunner } from "../../src/core/runner.js";
 import type { Task } from "../../src/core/task.js";
@@ -38,6 +39,23 @@ class FakeReviewer implements Reviewer {
 
   async review(): Promise<ReviewResult> {
     return this.results.shift() ?? { approved: true, feedback: "" };
+  }
+}
+
+class FakeCheckpointer implements Checkpointer {
+  created: string[] = [];
+  restored: string[] = [];
+  private counter = 0;
+
+  async create(label: string): Promise<string> {
+    this.counter += 1;
+    const id = `cp-${this.counter}`;
+    this.created.push(`${id}:${label}`);
+    return id;
+  }
+
+  async restore(checkpointId: string): Promise<void> {
+    this.restored.push(checkpointId);
   }
 }
 
@@ -135,5 +153,59 @@ describe("MissionRunner", () => {
 
     expect(graph.getTask("t2")?.status).toBe("COMPLETED");
     expect(graph.getTask("t1")?.status).toBe("COMPLETED");
+  });
+
+  it("checkpoints before running a task and stores the checkpoint id", async () => {
+    const graph = new TaskGraph([makeTask()]);
+    const agent = new FakeAgent(() => ({ success: true, summary: "done" }));
+    const reviewer = new FakeReviewer([{ approved: true, feedback: "looks good" }]);
+    const checkpointer = new FakeCheckpointer();
+
+    await new MissionRunner(graph, { agent, reviewer, checkpointer }).run();
+
+    expect(checkpointer.created).toEqual(["cp-1:before t1"]);
+    expect(graph.getTask("t1")?.checkpointId).toBe("cp-1");
+    expect(checkpointer.restored).toEqual([]);
+  });
+
+  it("restores the checkpoint when a review is rejected", async () => {
+    const graph = new TaskGraph([makeTask()]);
+    const agent = new FakeAgent(() => ({ success: true, summary: "attempt" }));
+    const reviewer = new FakeReviewer([
+      { approved: false, feedback: "missing tests" },
+      { approved: true, feedback: "now it is fine" }
+    ]);
+    const checkpointer = new FakeCheckpointer();
+
+    await new MissionRunner(graph, { agent, reviewer, checkpointer }).run();
+
+    expect(checkpointer.created).toEqual(["cp-1:before t1", "cp-2:before t1"]);
+    expect(checkpointer.restored).toEqual(["cp-1"]);
+    expect(graph.getTask("t1")?.status).toBe("COMPLETED");
+  });
+
+  it("does not restore a checkpoint when the task is blocked instead of reviewed", async () => {
+    const graph = new TaskGraph([makeTask({ id: "t1", status: "READY" })]);
+    const agent = new FakeAgent((context) => {
+      context.graph.spawnTask("t1", {
+        id: "t2",
+        title: "blocker",
+        description: "must happen first",
+        reason: "missing prerequisite"
+      });
+      return { success: false, summary: "blocked" };
+    });
+    const reviewer: Reviewer = {
+      review: () => {
+        throw new Error("reviewer should not be called while blocked");
+      }
+    };
+    const checkpointer = new FakeCheckpointer();
+
+    const runner = new MissionRunner(graph, { agent, reviewer, checkpointer });
+    await runner.step("t1");
+
+    expect(checkpointer.created).toEqual(["cp-1:before t1"]);
+    expect(checkpointer.restored).toEqual([]);
   });
 });
